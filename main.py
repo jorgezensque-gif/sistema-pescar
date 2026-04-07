@@ -1,29 +1,44 @@
-# --- NO TRECHO DOS GRÁFICOS INDIVIDUAIS (ABA 2) ---
+# --- ABA 2: GRÁFICOS INDIVIDUAIS (CORES VIVAS) ---
 with col2:
-    fig_bi = px.bar(
+    # Criando um mapeamento de cores manual para garantir o contraste
+    cores_map = []
+    for nota in m_ind:
+        if nota < 3: cores_map.append('red')
+        elif nota < 4: cores_map.append('orange')
+        else: cores_map.append('green')
+
+    fig_bi = go.Figure(data=[go.Bar(
         x=COMPETENCIAS, 
-        y=m_ind, 
+        y=m_ind,
+        marker_color=cores_map # Aplica as cores vibrantes
+    )])
+    
+    fig_bi.update_layout(
         title="<b>Desempenho por Competência (Individual)</b>",
-        color=m_ind, 
-        color_continuous_scale="RdYlGn", # Escala semáforo vibrante
-        range_color=[1, 5], # Garante que o vermelho seja 1 e o verde seja 5
-        labels={'x': 'Competência', 'y': 'Nota Final'}
+        yaxis=dict(range=[0, 5], title="Nota"),
+        margin=dict(l=20, r=20, t=50, b=100), # Mais espaço embaixo para o texto
+        height=450
     )
-    fig_bi.update_layout(coloraxis_showscale=False) # Remove a barra lateral de legenda para limpar o visual
-    fig_bi.update_yaxes(range=[0, 5.5]) # Espaço extra no topo
     st.plotly_chart(fig_bi, use_container_width=True)
 
-# --- NO TRECHO DOS GRÁFICOS DA TURMA (ABA 3) ---
+# --- ABA 3: GRÁFICOS DA TURMA (CORES VIVAS) ---
 with col2:
-    fig_bt = px.bar(
+    cores_turma = []
+    for nota in m_turma:
+        if nota < 3: cores_turma.append('red')
+        elif nota < 4: cores_turma.append('orange')
+        else: cores_turma.append('green')
+
+    fig_bt = go.Figure(data=[go.Bar(
         x=COMPETENCIAS, 
-        y=m_turma, 
-        title=f"<b>Média Geral da Turma - {et}</b>", 
-        color=m_turma, 
-        color_continuous_scale="RdYlGn", 
-        range_color=[1, 5],
-        labels={'x': 'Competência', 'y': 'Média da Turma'}
+        y=m_turma,
+        marker_color=cores_turma
+    )])
+    
+    fig_bt.update_layout(
+        title=f"<b>Média Geral da Turma - {et}</b>",
+        yaxis=dict(range=[0, 5], title="Média"),
+        margin=dict(l=20, r=20, t=50, b=100),
+        height=450
     )
-    fig_bt.update_layout(coloraxis_showscale=False)
-    fig_bt.update_yaxes(range=[0, 5.5])
     st.plotly_chart(fig_bt, use_container_width=True)
