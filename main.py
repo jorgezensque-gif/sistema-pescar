@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import sqlite3
 from datetime import datetime
 
-# --- CONFIGURAÇÕES E TEXTOS DO PDF ---
+# --- TEXTOS DAS COMPETÊNCIAS ---
 INFOS_PESCAR = {
     "1-SER PROTAGONISTA": "Protagonista é o jovem que se conscientiza de sua identidade, se reconhece como ser atuante, autônomo, solidário e construtor do seu destino.",
     "2-SER RESPONSÁVEL E COMPROMETIDO": "Comprometer-se com suas atividades, ser pontual e assíduo, cumprir o que é exigido e respeitar regras.",
@@ -42,26 +42,26 @@ if modo == "Área do Aluno":
         for titulo, desc in INFOS_PESCAR.items():
             st.markdown(f"### {titulo}")
             st.info(desc)
-            # VOLTOU PARA BOTÃO DE 1 A 5 (SEM BARRA)
-            n = st.radio(f"Sua nota (1-5):", [1, 2, 3, 4, 5], index=2, horizontal=True, key=f"j_{titulo}")
+            # REGRA: index=None deixa as notas em BRANCO (obrigatório escolher)
+            n = st.radio(f"Sua nota (1-5):", [1, 2, 3, 4, 5], index=None, horizontal=True, key=f"j_{titulo}")
             notas_j.append(n)
             st.write("---")
             
-        if st.form_submit_button("ENVIAR PARA O JORGE"):
-            if nome:
+        if st.form_submit_button("ENVIAR AVALIAÇÃO"):
+            if nome and all(v is not None for v in notas_j):
                 conn = sqlite3.connect('pescar_final.db')
                 c = conn.cursor()
                 c.execute("INSERT INTO avaliacoes (nome, etapa, j1,j2,j3,j4,j5,j6,j7, status, data) VALUES (?,?,?,?,?,?,?,?,?,?,?)", 
                           (nome, etapa, *notas_j, "Aguardando Jorge", datetime.now().strftime("%d/%m/%Y")))
                 conn.commit()
                 conn.close()
-                st.success("✅ Enviado com sucesso! Avise o Jorge.")
-            else: st.error("Por favor, preencha o seu nome!")
+                st.success("✅ Enviado! Suas respostas foram salvas em branco como solicitado.")
+            else: st.error("Por favor, preencha o nome e selecione TODAS as notas.")
 
 elif modo == "Painel do Gestor (Jorge)":
     senha = st.sidebar.text_input("Senha de Acesso:", type="password")
     if senha == "jorge2026":
-        st.header("📊 Painel de Avaliação do Educador")
+        st.header("📊 Painel do Educador")
         conn = sqlite3.connect('pescar_final.db')
         df = pd.read_sql("SELECT * FROM avaliacoes", conn)
         conn.close()
@@ -69,38 +69,39 @@ elif modo == "Painel do Gestor (Jorge)":
         if not df.empty:
             pendentes = df[df['status'] == "Aguardando Jorge"]
             if not pendentes.empty:
-                st.subheader("⭐ Dar nota do Gestor (1 a 5)")
-                id_aluno = st.selectbox("Escolha o aluno para avaliar:", pendentes['id'].tolist(), 
+                st.subheader("⭐ Avaliações Pendentes")
+                id_aluno = st.selectbox("Escolha o aluno:", pendentes['id'].tolist(), 
                                        format_func=lambda x: df[df['id']==x]['nome'].values[0])
                 
                 with st.form("form_gestor"):
                     notas_g = []
                     for titulo in INFOS_PESCAR.keys():
-                        # GESTOR TAMBÉM USA BOTÃO DE 1 A 5
-                        ng = st.radio(f"Sua nota para {titulo}:", [1, 2, 3, 4, 5], index=2, horizontal=True)
+                        ng = st.radio(f"Nota do Gestor para {titulo}:", [1, 2, 3, 4, 5], index=None, horizontal=True)
                         notas_g.append(ng)
                     
-                    if st.form_submit_button("FINALIZAR E GERAR GRÁFICO"):
-                        conn = sqlite3.connect('pescar_final.db')
-                        c = conn.cursor()
-                        c.execute("UPDATE avaliacoes SET g1=?, g2=?, g3=?, g4=?, g5=?, g6=?, g7=?, status='Finalizado' WHERE id=?", (*notas_g, id_aluno))
-                        conn.commit()
-                        conn.close()
-                        st.rerun()
-
-            st.write("---")
-            st.subheader("📈 Resultado Final (Média Jovem + Gestor)")
+                    if st.form_submit_button("FINALIZAR"):
+                        if all(v is not None for v in notas_g):
+                            conn = sqlite3.connect('pescar_final.db')
+                            c = conn.cursor()
+                            c.execute("UPDATE avaliacoes SET g1=?, g2=?, g3=?, g4=?, g5=?, g6=?, g7=?, status='Finalizado' WHERE id=?", (*notas_g, id_aluno))
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
+                        else: st.error("Dê todas as notas antes de finalizar.")
+            
+            # --- RESULTADOS ---
             finalizados = df[df['status'] == 'Finalizado']
             if not finalizados.empty:
+                st.write("---")
                 aluno_v = st.selectbox("Ver Gráfico de:", finalizados['nome'].unique())
                 d = finalizados[finalizados['nome'] == aluno_v].iloc[-1]
-                
-                # Média entre a nota do Jovem e do Gestor
                 medias = [(d[f'j{i}'] + d[f'g{i}'])/2 for i in range(1,8)]
                 
                 fig = go.Figure()
-                fig.add_trace(go.Scatterpolar(r=medias, theta=list(INFOS_PESCAR.keys()), fill='toself', name='Resultado Final'))
-                fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), title=f"Desempenho: {aluno_v}")
+                fig.add_trace(go.Scatterpolar(r=medias, theta=list(INFOS_PESCAR.keys()), fill='toself'))
+                fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])))
                 st.plotly_chart(fig)
         else:
-            st.warning("O painel está vazio. Peça para um aluno preencher primeiro!")
+            st.info("Nenhum dado encontrado no banco de dados.")
+    else:
+        st.error("Acesso restrito.")
