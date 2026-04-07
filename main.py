@@ -5,92 +5,107 @@ import plotly.graph_objects as go
 import sqlite3
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DAS COMPETÊNCIAS (PADRÃO PESCAR 2025) ---
-COMPETENCIAS = [
-    "Ser Protagonista", "Responsável e Comprometido", "Comunicação",
-    "Ético e Cidadão", "Situações Problema", "Trabalho em Equipe", "Aprender a Aprender"
-]
+# --- DICIONÁRIO DE PERGUNTAS (EXTRAÍDO DO SEU PDF) ---
+INFOS_PESCAR = {
+    "1-SER PROTAGONISTA": "Protagonista é o jovem que se conscientiza de sua identidade, se reconhece como ser atuante, autônomo, solidário e construtor do seu destino.",
+    "2-SER RESPONSÁVEL E COMPROMETIDO": "Comprometer-se com suas atividades, ser pontual e assíduo, cumprir o que é exigido e respeitar regras.",
+    "3-COMPREENDER CONTEXTOS E COMUNICAR-SE": "Capacidade de compreender o outro e expressar-se de forma clara, objetiva e coerente.",
+    "4-SER DEMOCRÁTICO, ÉTICO E CIDADÃO": "Agir com integridade, respeitar a diversidade e participar ativamente da vida comunitária.",
+    "5-RESOLVER SITUAÇÕES PROBLEMA": "Identificar problemas, analisar situações e propor soluções criativas e eficazes.",
+    "6-TRABALHAR E PRODUZIR EM EQUIPE": "Capacidade de colaborar e partilhar, colocando os interesses do grupo acima dos pessoais.",
+    "7-APRENDER A APRENDER": "Habilidade para buscar, compreender e construir novos conhecimentos ao longo da vida."
+}
 
-# --- FUNÇÕES DE BANCO DE DADOS (SQLite) ---
+# --- BANCO DE DADOS ---
 def init_db():
-    conn = sqlite3.connect('pescar_data.db')
+    conn = sqlite3.connect('pescar_v3.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS avaliacoes 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, etapa TEXT, 
-                 c1 REAL, c2 REAL, c3 REAL, c4 REAL, c5 REAL, c6 REAL, c7 REAL, data TEXT)''')
+                 c1_jovem INT, c2_jovem INT, c3_jovem INT, c4_jovem INT, c5_jovem INT, c6_jovem INT, c7_jovem INT,
+                 c1_gestor INT, c2_gestor INT, c3_gestor INT, c4_gestor INT, c5_gestor INT, c6_gestor INT, c7_gestor INT,
+                 status TEXT, data TEXT)''')
     conn.commit()
     conn.close()
 
-def salvar_avaliacao(nome, etapa, notas):
-    conn = sqlite3.connect('pescar_data.db')
-    c = conn.cursor()
-    data_hoje = datetime.now().strftime("%d/%m/%Y %H:%M")
-    c.execute("INSERT INTO avaliacoes (nome, etapa, c1, c2, c3, c4, c5, c6, c7, data) VALUES (?,?,?,?,?,?,?,?,?,?)",
-              (nome, etapa, *notas, data_hoje))
-    conn.commit()
-    conn.close()
+init_db()
+
+st.set_page_config(page_title="Sistema Pescar 2026", layout="wide")
 
 # --- INTERFACE ---
-init_db()
-st.set_page_config(page_title="SAP Pescar 2025", layout="wide")
+st.sidebar.title("📌 Menu")
+modo = st.sidebar.radio("Navegar:", ["Área do Aluno", "Painel do Gestor (Jorge)"])
 
-st.sidebar.title("🔐 Acesso")
-modo = st.sidebar.radio("Ir para:", ["Área do Aluno (Avaliação)", "Painel do Gestor"])
+if modo == "Área do Aluno":
+    st.header("📝 Autoavaliação do Jovem")
+    with st.form("form_jovem"):
+        nome = st.text_input("Nome Completo:")
+        etapa = st.selectbox("Etapa:", ["Etapa 1", "Etapa 2"])
+        
+        notas_jovem = []
+        for titulo, desc in INFOS_PESCAR.items():
+            st.markdown(f"### {titulo}")
+            st.caption(desc)
+            nota = st.radio(f"Sua nota para {titulo}:", [1, 2, 3, 4, 5], horizontal=True, key=titulo)
+            notas_jovem.append(nota)
+            st.write("---")
+            
+        if st.form_submit_button("Enviar para o Educador"):
+            conn = sqlite3.connect('pescar_v3.db')
+            c = conn.cursor()
+            c.execute("""INSERT INTO avaliacoes (nome, etapa, c1_jovem, c2_jovem, c3_jovem, c4_jovem, c5_jovem, c6_jovem, c7_jovem, status, data) 
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?)""", 
+                      (nome, etapa, *notas_jovem, "Pendente Gestor", datetime.now().strftime("%d/%m/%Y")))
+            conn.commit()
+            conn.close()
+            st.success("✅ Enviado! Agora o Jorge fará a avaliação dele.")
 
-if modo == "Área do Aluno (Avaliação)":
-    st.header("📝 Avaliação de Competências Socioemocionais")
-    st.info("Olá! Preencha sua avaliação abaixo. Suas respostas são enviadas diretamente para o educador.")
-    
-    with st.form("form_aluno"):
-        nome_aluno = st.text_input("Seu Nome Completo:")
-        etapa_aluno = st.selectbox("Qual etapa está realizando?", ["Etapa 1 (E1)", "Etapa 2 (E2)"])
+elif modo == "Painel do Gestor (Jorge)":
+    senha = st.sidebar.text_input("Senha:", type="password")
+    if senha == "jorge2026":
+        st.header("📊 Gestão de Avaliações")
         
-        notas_input = []
-        for comp in COMPETENCIAS:
-            nota = st.select_slider(f"Nível de: {comp}", options=list(range(11)), value=5)
-            notas_input.append(nota)
-        
-        if st.form_submit_button("Enviar Avaliação"):
-            if nome_aluno:
-                salvar_avaliacao(nome_aluno, etapa_aluno, notas_input)
-                st.success(f"✅ Parabéns, {nome_aluno}! Sua avaliação foi salva.")
-            else:
-                st.error("Por favor, digite seu nome antes de enviar.")
-
-elif modo == "Painel do Gestor":
-    # SENHA PARA O JORGE ACESSAR
-    senha = st.sidebar.text_input("Senha de Gestor:", type="password")
-    if senha == "jorge2026": 
-        st.header("📊 Painel de Monitoramento - Educador Jorge")
-        
-        conn = sqlite3.connect('pescar_data.db')
+        conn = sqlite3.connect('pescar_v3.db')
         df = pd.read_sql("SELECT * FROM avaliacoes", conn)
         conn.close()
 
         if not df.empty:
-            tab1, tab2 = st.tabs(["📊 Visão Geral (Barras)", "🕸️ Evolução Individual (Radar)"])
+            pendentes = df[df['status'] == "Pendente Gestor"]
             
-            with tab1:
-                st.subheader("Média da Turma (Visualização Geral)")
-                medias = df[['c1','c2','c3','c4','c5','c6','c7']].mean()
-                df_barras = pd.DataFrame({"Competência": COMPETENCIAS, "Média": medias.values})
-                fig_barras = px.bar(df_barras, x="Competência", y="Média", color="Média", 
-                                    range_y=[0,10], color_continuous_scale='RdYlGn', text_auto='.1f')
-                st.plotly_chart(fig_barras, use_container_width=True)
+            if not pendentes.empty:
+                st.subheader("⚠️ Avaliações aguardando sua nota")
+                aluno_id = st.selectbox("Selecione o aluno para avaliar:", pendentes['id'].tolist(), format_func=lambda x: df[df['id']==x]['nome'].values[0])
+                
+                with st.form("form_gestor"):
+                    notas_gestor = []
+                    for titulo in INFOS_PESCAR.keys():
+                        n_g = st.slider(f"Sua nota para: {titulo}", 1, 5, 3)
+                        notas_gestor.append(n_g)
+                    
+                    if st.form_submit_button("Finalizar Avaliação"):
+                        conn = sqlite3.connect('pescar_v3.db')
+                        c = conn.cursor()
+                        c.execute(f"""UPDATE avaliacoes SET 
+                                    c1_gestor=?, c2_gestor=?, c3_gestor=?, c4_gestor=?, c5_gestor=?, c6_gestor=?, c7_gestor=?, 
+                                    status='Finalizado' WHERE id=?""", (*notas_gestor, aluno_id))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
 
-            with tab2:
-                aluno_sel = st.selectbox("Escolha o Aluno para ver a Evolução:", df['nome'].unique())
-                df_aluno = df[df['nome'] == aluno_sel]
+            # --- GRÁFICOS ---
+            st.write("---")
+            st.subheader("📈 Resultados Finais (Média Jovem + Gestor)")
+            finalizados = df[df['status'] == "Finalizado"]
+            if not finalizados.empty:
+                aluno_ver = st.selectbox("Ver Gráfico de:", finalizados['nome'].unique())
+                dados_v = finalizados[finalizados['nome'] == aluno_ver].iloc[-1]
+                
+                # Cálculo da média (Jovem + Gestor) / 2
+                medias_finais = [(dados_v[f'c{i}_jovem'] + dados_v[f'c{i}_gestor'])/2 for i in range(1, 8)]
                 
                 fig_radar = go.Figure()
-                for i, row in df_aluno.iterrows():
-                    fig_radar.add_trace(go.Scatterpolar(
-                        r=[row['c1'], row['c2'], row['c3'], row['c4'], row['c5'], row['c6'], row['c7']],
-                        theta=COMPETENCIAS, fill='toself', name=row['etapa']
-                    ))
-                fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 10])), title=f"Evolução de {aluno_sel}")
+                fig_radar.add_trace(go.Scatterpolar(r=medias_finais, theta=list(INFOS_PESCAR.keys()), fill='toself', name=aluno_ver))
+                fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])))
                 st.plotly_chart(fig_radar)
         else:
-            st.warning("Ainda não existem avaliações no banco de dados.")
-    else:
-        st.error("Acesso restrito ao Gestor.")
+            st.info("Nenhuma avaliação registrada.")
